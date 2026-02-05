@@ -3,46 +3,63 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDB, Product } from '@/store/useDB';
 import { useRouter } from 'next/navigation';
-import { Trash2, Plus, Loader2 } from 'lucide-react';
+import { Trash2, Plus, Loader2, ShieldAlert } from 'lucide-react';
+
+const ADMIN_EMAIL = "chibundusadiq@gmail.com";
 
 export default function AdminPage() {
-  const { user, loading: authL } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { products, fetchProducts, deleteProduct, addProduct, fetchSettings } = useDB();
   const router = useRouter();
-  const [newP, setNewP] = useState({ name: '', price: '', images: '', sizes: 'S,M,L', colors: 'Black', category: 'clothes', collection: 'Utopia', status: 'available' });
+  
+  const [newProduct, setNewProduct] = useState({
+      name: '', price: '', category: 'clothes', collection: 'Utopia', 
+      images: '', status: 'available', sizes: 'S, M, L, XL', colors: 'Black'
+  });
 
   useEffect(() => {
-    if (!authL && (!user || user.email !== "chibundusadiq@gmail.com")) router.push('/');
-    else if (user) { fetchProducts(); fetchSettings(); }
-  }, [user, authL]);
+    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
+        router.push('/');
+    } else if (user) {
+        fetchProducts();
+        fetchSettings();
+    }
+  }, [user, authLoading, router]);
 
   const handleAdd = async (e: any) => {
-    e.preventDefault();
-    await addProduct({ ...newP, price: Number(newP.price), images: newP.images.split(','), sizes: newP.sizes.split(','), colors: newP.colors.split(','), description: 'Admin' });
-    alert('Deployed');
+      e.preventDefault();
+      await addProduct({
+          ...newProduct,
+          price: Number(newProduct.price),
+          images: newProduct.images.split(',').map(s => s.trim()),
+          sizes: newProduct.sizes.split(',').map(s => s.trim()),
+          colors: newProduct.colors.split(',').map(s => s.trim()),
+          description: 'Admin Deployment'
+      });
+      alert('Asset Deployed');
   };
 
-  if (authL || !user) return <div className="bg-black min-h-screen" />;
+  if (authLoading || !user) return <div className="min-h-screen bg-black" />;
 
   return (
     <div className="min-h-screen bg-black text-white pt-32 px-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-8">Command Center</h1>
+        <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-12">Command Center</h1>
         <div className="grid md:grid-cols-2 gap-12">
-          <form onSubmit={handleAdd} className="space-y-4 bg-zinc-900/50 p-6 border border-white/10">
-            <input placeholder="Name" className="w-full bg-black p-3 border border-white/10" onChange={e => setNewP({...newP, name: e.target.value})} />
-            <input placeholder="Price" type="number" className="w-full bg-black p-3 border border-white/10" onChange={e => setNewP({...newP, price: e.target.value})} />
-            <textarea placeholder="Images" className="w-full bg-black p-3 border border-white/10 h-32" onChange={e => setNewP({...newP, images: e.target.value})} />
-            <button className="w-full bg-brand-neon text-black font-black py-4 uppercase">Deploy Asset</button>
-          </form>
-          <div className="space-y-2">
-            {products.map(p => (
-              <div key={p.id} className="p-4 border border-white/5 flex justify-between items-center">
-                <span className="text-xs uppercase font-bold">{p.name}</span>
-                <button onClick={() => deleteProduct(p.id)} className="text-red-500"><Trash2 size={16}/></button>
-              </div>
-            ))}
-          </div>
+            <form onSubmit={handleAdd} className="space-y-4 bg-zinc-900/50 p-6 border border-white/10">
+                <input placeholder="Name" className="w-full bg-black border border-white/10 p-3 text-sm" onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                <input placeholder="Price" type="number" className="w-full bg-black border border-white/10 p-3 text-sm" onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                <textarea placeholder="Image URLs" className="w-full bg-black border border-white/10 p-3 text-sm h-32" onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
+                <button className="w-full bg-brand-neon text-black font-black py-4 uppercase text-xs">Deploy Asset</button>
+            </form>
+            <div className="space-y-2">
+                {products.map(p => (
+                    <div key={p.id} className="p-4 border border-white/5 bg-zinc-900/20 flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase">{p.name}</span>
+                        <button onClick={() => deleteProduct(p.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
         </div>
       </div>
     </div>

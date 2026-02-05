@@ -17,7 +17,8 @@ interface StoreState {
   toggleCart: () => void;
   addToCart: (item: CartItem) => void;
   removeFromCart: (id: string, size: string) => void;
-  updateQuantity: (id: string, size: string, quantity: number) => void; // THE MISSING TYPE
+  updateQuantity: (id: string, size: string, quantity: number) => void;
+  replaceCart: (newCart: CartItem[]) => void;
   clearCart: () => void;
 }
 
@@ -27,36 +28,20 @@ export const useStore = create<StoreState>()(
       cart: [],
       isCartOpen: false,
       toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
-      
       addToCart: (item) => set((state) => {
-        const existingItem = state.cart.find(
-          (i) => i.id === item.id && i.size === item.size
-        );
-        if (existingItem) {
-          return {
-            cart: state.cart.map((i) =>
-              i.id === item.id && i.size === item.size
-                ? { ...i, quantity: i.quantity + 1 }
-                : i
-            ),
-          };
+        const existing = state.cart.find(i => i.id === item.id && i.size === item.size);
+        if (existing) {
+          return { cart: state.cart.map(i => i.id === item.id && i.size === item.size ? { ...i, quantity: i.quantity + 1 } : i)};
         }
         return { cart: [...state.cart, item] };
       }),
-
       removeFromCart: (id, size) => set((state) => ({
         cart: state.cart.filter((i) => !(i.id === id && i.size === size)),
       })),
-
-      // THE MISSING LOGIC
       updateQuantity: (id, size, quantity) => set((state) => ({
-        cart: state.cart.map((item) => 
-          item.id === id && item.size === size 
-            ? { ...item, quantity: Math.max(0, quantity) } 
-            : item
-        ).filter(item => item.quantity > 0)
+        cart: state.cart.map((item) => item.id === id && item.size === size ? { ...item, quantity: Math.max(0, quantity) } : item).filter(item => item.quantity > 0)
       })),
-
+      replaceCart: (newCart) => set({ cart: newCart }),
       clearCart: () => set({ cart: [] }),
     }),
     { name: 'cactus-bear-storage' }
