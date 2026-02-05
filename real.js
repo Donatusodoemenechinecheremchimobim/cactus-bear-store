@@ -12,61 +12,72 @@ const writeFile = (filePath, content) => {
 };
 
 const files = {
-  'components/DropCountdown.tsx': `
+  'components/Navbar.tsx': `
 "use client";
 import { useState, useEffect } from 'react';
+import { useStore } from '@/store/useStore';
+import { useAuth } from '@/hooks/useAuth';
 import { useDB } from '@/store/useDB';
+import Link from 'next/link';
+import { ShoppingBag, Menu, X, User, Zap, Heart } from 'lucide-react';
 
-export default function DropCountdown() {
-  // ⚠️ THE FIX: Changed 'dropSettings' to 'settings'
-  const { settings, fetchSettings } = useDB();
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+export default function Navbar() {
   const [mounted, setMounted] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    setMounted(true);
-    fetchSettings();
-  }, [fetchSettings]);
+  // ⚠️ THE FIX: Removed 'currency' and 'toggleCurrency'
+  const { cart, toggleCart } = useStore();
+  const { user } = useAuth();
+  const { wishlist } = useDB();
 
-  useEffect(() => {
-    if (!settings?.nextDrop) return;
-
-    const timer = setInterval(() => {
-      const target = new Date(settings.nextDrop).getTime();
-      const now = new Date().getTime();
-      const distance = target - now;
-
-      if (distance < 0) {
-        clearInterval(timer);
-        return;
-      }
-
-      setTimeLeft({
-        days: Math.floor(distance / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-        minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-        seconds: Math.floor((distance % (1000 * 60)) / 1000),
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [settings]);
-
-  if (!mounted || !settings?.nextDrop) return null;
+  if (!mounted) return null;
 
   return (
-    <div className="bg-brand-neon text-black py-2 px-4 flex justify-center gap-8 font-mono text-[10px] font-black uppercase tracking-[0.2em]">
-      <div className="flex items-center gap-2">
-        <span className="opacity-40">Next Drop:</span>
-        <span>{settings.announcement || 'Utopia Collection'}</span>
+    <nav className="fixed top-0 left-0 w-full z-[90] bg-black/80 backdrop-blur-md border-b border-white/5">
+      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+        
+        {/* Logo */}
+        <Link href="/" className="group flex items-center gap-2">
+            <div className="w-8 h-8 bg-brand-neon rounded-full flex items-center justify-center group-hover:rotate-12 transition-transform">
+                <Zap size={18} className="text-black" fill="black" />
+            </div>
+            <span className="text-xl font-black uppercase italic tracking-tighter text-white group-hover:text-brand-neon transition-colors">CACTUS BEAR</span>
+        </Link>
+
+        {/* Desktop Links */}
+        <div className="hidden md:flex items-center gap-10">
+          <Link href="/shop" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Archive</Link>
+          <Link href="/collections" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Utopia</Link>
+          <Link href="/admin" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Operator</Link>
+        </div>
+
+        {/* Icons */}
+        <div className="flex items-center gap-6">
+          <Link href="/wishlist" className="relative text-white/50 hover:text-white transition-colors">
+            <Heart size={20} />
+            {wishlist.length > 0 && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
+          </Link>
+          
+          <button onClick={toggleCart} className="relative group p-2">
+            <ShoppingBag size={22} className="text-white/50 group-hover:text-brand-neon transition-colors" />
+            {cart.length > 0 && (
+                <span className="absolute top-0 right-0 bg-brand-neon text-black text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                </span>
+            )}
+          </button>
+
+          <Link href={user ? "/profile" : "/login"} className="text-white/50 hover:text-white transition-colors">
+            <User size={22} />
+          </Link>
+
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-white">
+            {mobileOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
-      <div className="flex gap-4">
-        <div>{timeLeft.days}D</div>
-        <div>{timeLeft.hours}H</div>
-        <div>{timeLeft.minutes}M</div>
-        <div>{timeLeft.seconds}S</div>
-      </div>
-    </div>
+    </nav>
   );
 }
 `
@@ -74,4 +85,4 @@ export default function DropCountdown() {
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
 
-console.log("COUNTDOWN FIXED. Run git push now.");
+console.log("NAVBAR CLEANED. Push to GitHub now.");
