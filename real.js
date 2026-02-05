@@ -8,78 +8,67 @@ const writeFile = (filePath, content) => {
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log("Successfully Fixed: " + filePath);
+  console.log("Fixed: " + filePath);
 };
 
-const files = {
-  'store/useStore.ts': `
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+// We are fixing the file at the ROOT and the one Vercel is finding in the sub-folder
+const adminContent = `
+"use client";
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useDB, Product } from '@/store/useDB';
+import { useRouter } from 'next/navigation';
+import { Trash2, Plus, Loader2 } from 'lucide-react';
 
-export interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  size: string;
-  color: string;
-  quantity: number;
+export default function AdminPage() {
+  const { user, loading: authL } = useAuth();
+  const { products, fetchProducts, deleteProduct, addProduct, fetchSettings } = useDB();
+  const router = useRouter();
+  const [newP, setNewP] = useState({ name: '', price: '', images: '', sizes: 'S,M,L', colors: 'Black', category: 'clothes', collection: 'Utopia', status: 'available' });
+
+  useEffect(() => {
+    if (!authL && (!user || user.email !== "chibundusadiq@gmail.com")) router.push('/');
+    else if (user) { fetchProducts(); fetchSettings(); }
+  }, [user, authL]);
+
+  const handleAdd = async (e: any) => {
+    e.preventDefault();
+    await addProduct({ ...newP, price: Number(newP.price), images: newP.images.split(','), sizes: newP.sizes.split(','), colors: newP.colors.split(','), description: 'Admin' });
+    alert('Deployed');
+  };
+
+  if (authL || !user) return <div className="bg-black min-h-screen" />;
+
+  return (
+    <div className="min-h-screen bg-black text-white pt-32 px-6">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-8">Command Center</h1>
+        <div className="grid md:grid-cols-2 gap-12">
+          <form onSubmit={handleAdd} className="space-y-4 bg-zinc-900/50 p-6 border border-white/10">
+            <input placeholder="Name" className="w-full bg-black p-3 border border-white/10" onChange={e => setNewP({...newP, name: e.target.value})} />
+            <input placeholder="Price" type="number" className="w-full bg-black p-3 border border-white/10" onChange={e => setNewP({...newP, price: e.target.value})} />
+            <textarea placeholder="Images" className="w-full bg-black p-3 border border-white/10 h-32" onChange={e => setNewP({...newP, images: e.target.value})} />
+            <button className="w-full bg-brand-neon text-black font-black py-4 uppercase">Deploy Asset</button>
+          </form>
+          <div className="space-y-2">
+            {products.map(p => (
+              <div key={p.id} className="p-4 border border-white/5 flex justify-between items-center">
+                <span className="text-xs uppercase font-bold">{p.name}</span>
+                <button onClick={() => deleteProduct(p.id)} className="text-red-500"><Trash2 size={16}/></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
+`;
 
-interface StoreState {
-  cart: CartItem[];
-  isCartOpen: boolean;
-  toggleCart: () => void;
-  addToCart: (item: CartItem) => void;
-  removeFromCart: (id: string, size: string) => void;
-  updateQuantity: (id: string, size: string, quantity: number) => void; // THE MISSING TYPE
-  clearCart: () => void;
-}
+// 1. Fix the main admin page
+writeFile('app/admin/page.tsx', adminContent);
 
-export const useStore = create<StoreState>()(
-  persist(
-    (set) => ({
-      cart: [],
-      isCartOpen: false,
-      toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
-      
-      addToCart: (item) => set((state) => {
-        const existingItem = state.cart.find(
-          (i) => i.id === item.id && i.size === item.size
-        );
-        if (existingItem) {
-          return {
-            cart: state.cart.map((i) =>
-              i.id === item.id && i.size === item.size
-                ? { ...i, quantity: i.quantity + 1 }
-                : i
-            ),
-          };
-        }
-        return { cart: [...state.cart, item] };
-      }),
+// 2. Fix the sub-folder copy that Vercel is accidentally finding
+writeFile('cactus-bear-store/app/admin/page.tsx', adminContent);
 
-      removeFromCart: (id, size) => set((state) => ({
-        cart: state.cart.filter((i) => !(i.id === id && i.size === size)),
-      })),
-
-      // THE MISSING LOGIC
-      updateQuantity: (id, size, quantity) => set((state) => ({
-        cart: state.cart.map((item) => 
-          item.id === id && item.size === size 
-            ? { ...item, quantity: Math.max(0, quantity) } 
-            : item
-        ).filter(item => item.quantity > 0)
-      })),
-
-      clearCart: () => set({ cart: [] }),
-    }),
-    { name: 'cactus-bear-storage' }
-  )
-);
-`
-};
-
-Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
-
-console.log("CART STORE UPDATED. Run git commands now.");
+console.log("CLEANUP COMPLETE. Push now.");
