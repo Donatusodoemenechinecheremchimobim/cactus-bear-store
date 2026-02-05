@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, getDoc } from 'firebase/firestore';
 
-// ⚠️ THE FIX: Added 'status' to this list
 export interface Product {
   id: string;
   name: string;
@@ -13,13 +12,16 @@ export interface Product {
   description: string;
   sizes: string[];
   colors: string[];
-  status: string; // <--- ADDED THIS LINE
+  status: string;
 }
 
+// ⚠️ THE FIX: Added 'settings' and 'fetchSettings' to the interface
 interface DBState {
   products: Product[];
+  settings: { nextDrop: string; announcement: string }; 
   loading: boolean;
   fetchProducts: () => Promise<void>;
+  fetchSettings: () => Promise<void>; // <--- THIS WAS MISSING
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
@@ -27,6 +29,7 @@ interface DBState {
 
 export const useDB = create<DBState>((set, get) => ({
   products: [],
+  settings: { nextDrop: '', announcement: '' }, // Default empty settings
   loading: false,
 
   fetchProducts: async () => {
@@ -39,8 +42,22 @@ export const useDB = create<DBState>((set, get) => ({
       })) as Product[];
       set({ products, loading: false });
     } catch (error) {
-      console.error("Fetch failed:", error);
+      console.error("Fetch products failed:", error);
       set({ loading: false });
+    }
+  },
+
+  // ⚠️ THE FIX: Implemented the missing function
+  fetchSettings: async () => {
+    try {
+      // We assume there is a collection called 'settings' with a doc called 'general'
+      const docRef = doc(db, "settings", "general");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        set({ settings: docSnap.data() as any });
+      }
+    } catch (error) {
+      console.error("Fetch settings failed:", error);
     }
   },
 
@@ -50,7 +67,7 @@ export const useDB = create<DBState>((set, get) => ({
       await updateDoc(productRef, data);
       await get().fetchProducts(); 
     } catch (error) {
-      console.error("Update failed:", error);
+      console.error("Update product failed:", error);
     }
   },
 
@@ -59,7 +76,7 @@ export const useDB = create<DBState>((set, get) => ({
       await deleteDoc(doc(db, "products", id));
       await get().fetchProducts();
     } catch (error) {
-      console.error("Delete failed:", error);
+      console.error("Delete product failed:", error);
     }
   },
 
@@ -68,7 +85,7 @@ export const useDB = create<DBState>((set, get) => ({
       await addDoc(collection(db, "products"), data);
       await get().fetchProducts();
     } catch (error) {
-      console.error("Add failed:", error);
+      console.error("Add product failed:", error);
     }
   }
 }));
