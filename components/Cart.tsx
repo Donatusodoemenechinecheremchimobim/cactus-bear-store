@@ -1,71 +1,67 @@
 "use client";
 import { useStore } from '@/store/useStore';
-import { X, Trash2, CreditCard } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { X, Trash2, ShoppingBag } from 'lucide-react';
 
 export default function Cart() {
-  const { cart, removeFromCart, toggleCart, isCartOpen, currency } = useStore();
+  // ⚠️ THE FIX: Removed 'currency' from the list below
+  const { cart, removeFromCart, toggleCart, isCartOpen } = useStore();
   const router = useRouter();
+  
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
+  if (!isCartOpen) return null;
+
   return (
-    <AnimatePresence>
-      {isCartOpen && (
-        <>
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={toggleCart} className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60]" 
-          />
-          <motion.div 
-            initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 h-full w-full max-w-md bg-[#0a0a0a] border-l border-white/10 z-[70] p-6 flex flex-col"
-          >
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-black uppercase italic">Cart ({cart.length})</h2>
-              <button onClick={toggleCart}><X className="hover:text-brand-neon" /></button>
-            </div>
+    <div className="fixed inset-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={toggleCart} />
+      
+      <div className="relative w-full max-w-md bg-black border-l border-white/10 h-full flex flex-col shadow-2xl">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <h2 className="text-xl font-black uppercase italic text-brand-neon">Current Stash</h2>
+          <button onClick={toggleCart} className="text-white/50 hover:text-white transition-colors">
+            <X size={24} />
+          </button>
+        </div>
 
-            <div className="flex-1 overflow-y-auto space-y-4">
-              {cart.length === 0 ? (
-                <p className="text-white/30 font-mono text-xs uppercase">No Items Deployed.</p>
-              ) : (
-                cart.map((item) => (
-                  <div key={item.id + item.size} className="flex gap-4 bg-black p-3 border border-white/5">
-                    <div className="h-20 w-20 bg-cover bg-center bg-zinc-900" style={{backgroundImage: `url(${item.image})`}} />
-                    <div className="flex-1 flex flex-col justify-between">
-                      <div>
-                        <h3 className="font-bold uppercase text-sm">{item.name}</h3>
-                        <p className="text-[10px] text-white/50 font-mono">Size: {item.size} | Qty: {item.quantity}</p>
-                      </div>
-                      <div className="flex justify-between items-end">
-                        <span className="font-mono font-bold text-brand-neon">₦{(item.price * item.quantity).toLocaleString()}</span>
-                        <button onClick={() => removeFromCart(item.id, item.size)} className="text-white/20 hover:text-red-500"><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {cart.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-white/20 uppercase font-mono text-xs tracking-widest gap-4">
+              <ShoppingBag size={40} />
+              <p>Inventory Empty</p>
             </div>
-
-            {cart.length > 0 && (
-              <div className="border-t border-white/10 pt-6 mt-4">
-                <div className="flex justify-between text-lg font-black uppercase italic mb-6">
-                  <span>Total</span>
-                  <span>₦{total.toLocaleString()}</span>
+          ) : (
+            cart.map((item) => (
+              <div key={`${item.id}-${item.size}`} className="flex gap-4 bg-zinc-900/50 p-4 border border-white/5 group">
+                <div className="w-20 h-20 bg-zinc-800 bg-cover bg-center" style={{ backgroundImage: `url(${item.image})` }} />
+                <div className="flex-1">
+                  <h3 className="font-bold uppercase text-sm leading-tight mb-1">{item.name}</h3>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2">{item.size} // {item.quantity} units</p>
+                  <p className="text-brand-neon font-mono text-xs font-bold">₦{item.price.toLocaleString()}</p>
                 </div>
-                <button 
-                    onClick={() => { toggleCart(); router.push('/checkout'); }}
-                    className="w-full bg-brand-neon text-black py-4 font-black uppercase tracking-widest hover:bg-white transition-colors flex items-center justify-center gap-2"
-                >
-                    <CreditCard size={18} /> Checkout
+                <button onClick={() => removeFromCart(item.id, item.size)} className="text-white/20 hover:text-red-500 self-start transition-colors">
+                  <Trash2 size={16} />
                 </button>
               </div>
-            )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            ))
+          )}
+        </div>
+
+        {cart.length > 0 && (
+          <div className="p-6 border-t border-white/10 bg-zinc-900/30">
+            <div className="flex justify-between items-end mb-6">
+              <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">Subtotal</span>
+              <span className="text-2xl font-black text-white italic">₦{total.toLocaleString()}</span>
+            </div>
+            <button 
+              onClick={() => { toggleCart(); router.push('/checkout'); }}
+              className="w-full bg-white text-black font-black py-4 uppercase tracking-[0.2em] text-xs hover:bg-brand-neon transition-all"
+            >
+              Proceed to Checkout
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

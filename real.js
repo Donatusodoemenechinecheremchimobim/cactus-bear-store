@@ -12,123 +12,70 @@ const writeFile = (filePath, content) => {
 };
 
 const files = {
-  'app/product/[id]/page.tsx': `
+  'components/Cart.tsx': `
 "use client";
-import { useEffect, useState } from 'react';
-import { useDB, Product } from '@/store/useDB';
 import { useStore } from '@/store/useStore';
-import { useParams } from 'next/navigation';
-import { ChevronLeft, ShoppingBag, Heart, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { X, Trash2, ShoppingBag } from 'lucide-react';
 
-export default function ProductPage() {
-  const { id } = useParams();
-  const { products, fetchProducts, toggleWishlist, wishlist } = useDB();
-  const { addToCart, toggleCart } = useStore();
+export default function Cart() {
+  // ⚠️ THE FIX: Removed 'currency' from the list below
+  const { cart, removeFromCart, toggleCart, isCartOpen } = useStore();
+  const router = useRouter();
   
-  const [selectedSize, setSelectedSize] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
+  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
-
-  const product = products.find(p => p.id === id);
-
-  if (!product) return <div className="min-h-screen bg-black flex items-center justify-center text-brand-neon font-mono uppercase tracking-widest"><Loader2 className="animate-spin mr-2" /> Locating Asset...</div>;
-
-  const handleAddToCart = () => {
-    if (!selectedSize) {
-      alert("Please select a size");
-      return;
-    }
-    
-    // ⚠️ THE FIX: Added 'color' to the object below
-    addToCart({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      image: product.images[0],
-      size: selectedSize,
-      color: selectedColor || product.colors[0] || 'Black', // Falls back to first color or Black
-      quantity: 1
-    });
-    toggleCart();
-  };
+  if (!isCartOpen) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 pb-20 px-6">
-      <div className="max-w-7xl mx-auto">
-        <Link href="/" className="inline-flex items-center gap-2 text-white/40 hover:text-white transition-colors mb-12 uppercase text-[10px] font-black tracking-widest">
-            <ChevronLeft size={16} /> Return to Grid
-        </Link>
-
-        <div className="grid lg:grid-cols-2 gap-16">
-          <div className="space-y-4">
-            {product.images.map((img, idx) => (
-              <div key={idx} className="aspect-square bg-zinc-900 border border-white/5 overflow-hidden">
-                <img src={img} alt={product.name} className="w-full h-full object-cover" />
-              </div>
-            ))}
-          </div>
-
-          <div className="lg:sticky lg:top-32 h-fit">
-            <p className="text-brand-neon font-mono text-xs uppercase tracking-[0.3em] mb-4 italic">{product.collection} // {product.category}</p>
-            <h1 className="text-5xl md:text-7xl font-black uppercase italic leading-none mb-6 tracking-tighter">{product.name}</h1>
-            <p className="text-3xl font-mono text-white/90 mb-8 italic">₦{product.price.toLocaleString()}</p>
-            
-            <p className="text-sm text-white/50 leading-relaxed mb-12 max-w-md">{product.description}</p>
-
-            <div className="space-y-10">
-              {/* SIZE SELECT */}
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-4">Select Configuration (Size)</label>
-                <div className="flex flex-wrap gap-3">
-                  {product.sizes.map(size => (
-                    <button 
-                      key={size}
-                      onClick={() => setSelectedSize(size)}
-                      className={\`px-6 py-3 border font-bold text-xs uppercase transition-all \${selectedSize === size ? 'bg-white text-black border-white' : 'border-white/10 text-white hover:border-white'}\`}
-                    >
-                      {size}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* COLOR SELECT */}
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-4">Select Aesthetic (Color)</label>
-                <div className="flex flex-wrap gap-3">
-                  {product.colors.map(color => (
-                    <button 
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={\`px-6 py-3 border font-bold text-xs uppercase transition-all \${selectedColor === color ? 'bg-brand-neon text-black border-brand-neon' : 'border-white/10 text-white hover:border-white'}\`}
-                    >
-                      {color}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-8">
-                <button 
-                  onClick={handleAddToCart}
-                  className="flex-1 bg-brand-neon text-black font-black py-6 uppercase tracking-[0.2em] text-xs hover:bg-white transition-all flex items-center justify-center gap-3"
-                >
-                  <ShoppingBag size={18} /> Initialize Transfer
-                </button>
-                <button 
-                  onClick={() => toggleWishlist(product.id)}
-                  className={\`p-6 border transition-all \${wishlist.includes(product.id) ? 'bg-red-600 border-red-600 text-white' : 'border-white/10 text-white/40 hover:text-white hover:border-white'}\`}
-                >
-                  <Heart size={20} fill={wishlist.includes(product.id) ? 'currentColor' : 'none'} />
-                </button>
-              </div>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={toggleCart} />
+      
+      <div className="relative w-full max-w-md bg-black border-l border-white/10 h-full flex flex-col shadow-2xl">
+        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+          <h2 className="text-xl font-black uppercase italic text-brand-neon">Current Stash</h2>
+          <button onClick={toggleCart} className="text-white/50 hover:text-white transition-colors">
+            <X size={24} />
+          </button>
         </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {cart.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-white/20 uppercase font-mono text-xs tracking-widest gap-4">
+              <ShoppingBag size={40} />
+              <p>Inventory Empty</p>
+            </div>
+          ) : (
+            cart.map((item) => (
+              <div key={\`\${item.id}-\${item.size}\`} className="flex gap-4 bg-zinc-900/50 p-4 border border-white/5 group">
+                <div className="w-20 h-20 bg-zinc-800 bg-cover bg-center" style={{ backgroundImage: \`url(\${item.image})\` }} />
+                <div className="flex-1">
+                  <h3 className="font-bold uppercase text-sm leading-tight mb-1">{item.name}</h3>
+                  <p className="text-[10px] text-white/40 uppercase tracking-widest mb-2">{item.size} // {item.quantity} units</p>
+                  <p className="text-brand-neon font-mono text-xs font-bold">₦{item.price.toLocaleString()}</p>
+                </div>
+                <button onClick={() => removeFromCart(item.id, item.size)} className="text-white/20 hover:text-red-500 self-start transition-colors">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {cart.length > 0 && (
+          <div className="p-6 border-t border-white/10 bg-zinc-900/30">
+            <div className="flex justify-between items-end mb-6">
+              <span className="text-[10px] uppercase font-black text-white/40 tracking-widest">Subtotal</span>
+              <span className="text-2xl font-black text-white italic">₦{total.toLocaleString()}</span>
+            </div>
+            <button 
+              onClick={() => { toggleCart(); router.push('/checkout'); }}
+              className="w-full bg-white text-black font-black py-4 uppercase tracking-[0.2em] text-xs hover:bg-brand-neon transition-all"
+            >
+              Proceed to Checkout
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -138,4 +85,4 @@ export default function ProductPage() {
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
 
-console.log("PRODUCT PAGE FIXED. Push to GitHub now.");
+console.log("CART UI FIXED. Run git push now.");
