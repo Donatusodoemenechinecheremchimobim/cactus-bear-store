@@ -1,37 +1,38 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-interface CartItem {
+export interface CartItem {
   id: string;
   name: string;
   price: number;
   image: string;
   size: string;
+  color: string;
   quantity: number;
 }
 
 interface StoreState {
   cart: CartItem[];
-  currency: string;
+  isCartOpen: boolean;
+  toggleCart: () => void;
   addToCart: (item: CartItem) => void;
   removeFromCart: (id: string, size: string) => void;
+  updateQuantity: (id: string, size: string, quantity: number) => void; // THE MISSING TYPE
   clearCart: () => void;
-  replaceCart: (newCart: CartItem[]) => void; // <--- NEW ACTION
-  toggleCart: () => void;
-  toggleCurrency: () => void;
-  isCartOpen: boolean;
 }
 
 export const useStore = create<StoreState>()(
   persist(
     (set) => ({
       cart: [],
-      currency: 'NGN',
       isCartOpen: false,
+      toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
       
       addToCart: (item) => set((state) => {
-        const existing = state.cart.find((i) => i.id === item.id && i.size === item.size);
-        if (existing) {
+        const existingItem = state.cart.find(
+          (i) => i.id === item.id && i.size === item.size
+        );
+        if (existingItem) {
           return {
             cart: state.cart.map((i) =>
               i.id === item.id && i.size === item.size
@@ -40,19 +41,23 @@ export const useStore = create<StoreState>()(
             ),
           };
         }
-        return { cart: [...state.cart, { ...item, quantity: 1 }], isCartOpen: true };
+        return { cart: [...state.cart, item] };
       }),
 
       removeFromCart: (id, size) => set((state) => ({
         cart: state.cart.filter((i) => !(i.id === id && i.size === size)),
       })),
 
-      // NEW: Used to load cart from Database
-      replaceCart: (newCart) => set({ cart: newCart }),
+      // THE MISSING LOGIC
+      updateQuantity: (id, size, quantity) => set((state) => ({
+        cart: state.cart.map((item) => 
+          item.id === id && item.size === size 
+            ? { ...item, quantity: Math.max(0, quantity) } 
+            : item
+        ).filter(item => item.quantity > 0)
+      })),
 
       clearCart: () => set({ cart: [] }),
-      toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
-      toggleCurrency: () => set((state) => ({ currency: state.currency === 'NGN' ? 'USD' : 'NGN' })),
     }),
     { name: 'cactus-bear-storage' }
   )
