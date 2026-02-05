@@ -7,6 +7,7 @@ import { Trash2, Plus, Save, X, Edit2, Loader2, Package } from 'lucide-react';
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
+  // ⚠️ THE FIX: We are now destructuring 'addProduct' (the correct name)
   const { products, fetchProducts, updateProduct, deleteProduct, addProduct } = useDB();
   const router = useRouter();
   
@@ -19,6 +20,7 @@ export default function AdminPage() {
   });
 
   useEffect(() => {
+    // Only allow specific admin email
     if (!authLoading && (!user || user.email !== 'chibundusadiq@gmail.com')) {
         router.push('/');
     }
@@ -34,7 +36,7 @@ export default function AdminPage() {
   };
 
   const handleAdd = async () => {
-      // ⚠️ FIX: Ensure all fields match the Product type
+      // ⚠️ THE FIX: Using 'addProduct' here too
       await addProduct({
           name: newProduct.name,
           price: Number(newProduct.price),
