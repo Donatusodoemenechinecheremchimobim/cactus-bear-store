@@ -3,24 +3,28 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDB, Product } from '@/store/useDB';
 import { useRouter } from 'next/navigation';
-import { Trash2, Plus, Save, X, Edit2, Loader2, Package } from 'lucide-react';
+import { Trash2, Plus, Save, X, Edit2, Loader2, Package, Clock } from 'lucide-react';
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
-  // ⚠️ THE FIX: We are now destructuring 'addProduct' (the correct name)
-  const { products, fetchProducts, updateProduct, deleteProduct, addProduct } = useDB();
+  // ⚠️ CORRECT NAMES: addProduct, settings, updateSettings
+  const { products, fetchProducts, updateProduct, deleteProduct, addProduct, settings, updateSettings, fetchSettings } = useDB();
   const router = useRouter();
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Drop Timer Form
+  const [dropTime, setDropTime] = useState('');
+  const [announcement, setAnnouncement] = useState('');
+
   const [newProduct, setNewProduct] = useState({
       name: '', price: 0, category: 'Tees', collection: 'Utopia', 
       images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black'
   });
 
   useEffect(() => {
-    // Only allow specific admin email
     if (!authLoading && (!user || user.email !== 'chibundusadiq@gmail.com')) {
         router.push('/');
     }
@@ -28,7 +32,13 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchSettings();
+  }, [fetchProducts, fetchSettings]);
+
+  const handleSaveSettings = async () => {
+    await updateSettings({ nextDrop: dropTime, announcement });
+    alert("Settings Saved");
+  };
 
   const handleSave = async (id: string) => {
       await updateProduct(id, editForm);
@@ -36,7 +46,6 @@ export default function AdminPage() {
   };
 
   const handleAdd = async () => {
-      // ⚠️ THE FIX: Using 'addProduct' here too
       await addProduct({
           name: newProduct.name,
           price: Number(newProduct.price),
@@ -57,14 +66,31 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-black text-white pt-32 px-6 pb-20">
       <div className="max-w-7xl mx-auto">
+        
+        {/* HEADER */}
         <div className="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
             <div>
                 <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-2">Command Center</h1>
-                <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Inventory Management Protocol</p>
+                <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Inventory & Drop Management</p>
             </div>
             <button onClick={() => setIsAdding(true)} className="bg-white text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-brand-neon transition-colors flex items-center gap-2">
                 <Plus size={16} /> New Asset
             </button>
+        </div>
+
+        {/* SETTINGS PANEL */}
+        <div className="bg-[#0a0a0a] border border-white/10 p-6 mb-12 flex flex-col md:flex-row gap-6 items-end">
+             <div className="flex-1 w-full">
+                 <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block flex items-center gap-2"><Clock size={12}/> Next Drop Date</label>
+                 <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="Oct 20, 2024" defaultValue={settings?.nextDrop} onChange={(e) => setDropTime(e.target.value)} />
+             </div>
+             <div className="flex-1 w-full">
+                 <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Announcement Bar</label>
+                 <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="FREE SHIPPING ON ALL ORDERS" defaultValue={settings?.announcement} onChange={(e) => setAnnouncement(e.target.value)} />
+             </div>
+             <button onClick={handleSaveSettings} className="bg-brand-neon text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-white transition-colors">
+                Update Settings
+             </button>
         </div>
 
         {/* ADD NEW PRODUCT FORM */}

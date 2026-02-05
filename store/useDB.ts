@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, getDoc } from 'firebase/firestore';
-import { persist } from 'zustand/middleware'; // Optional: Keeps wishlist after refresh
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, getDoc, setDoc } from 'firebase/firestore';
 
 export interface Product {
   id: string;
@@ -19,21 +18,22 @@ export interface Product {
 interface DBState {
   products: Product[];
   settings: { nextDrop: string; announcement: string }; 
-  wishlist: string[]; // <--- ADDED THIS
+  wishlist: string[];
   loading: boolean;
   
   fetchProducts: () => Promise<void>;
   fetchSettings: () => Promise<void>;
+  updateSettings: (data: any) => Promise<void>; // <--- Added this
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
-  toggleWishlist: (id: string) => void; // <--- ADDED THIS
+  toggleWishlist: (id: string) => void;
 }
 
 export const useDB = create<DBState>((set, get) => ({
   products: [],
   settings: { nextDrop: '', announcement: '' },
-  wishlist: [], // Default empty
+  wishlist: [],
   loading: false,
 
   fetchProducts: async () => {
@@ -60,6 +60,16 @@ export const useDB = create<DBState>((set, get) => ({
       }
     } catch (error) {
       console.error("Fetch settings failed:", error);
+    }
+  },
+
+  updateSettings: async (data) => {
+    try {
+      const docRef = doc(db, "settings", "general");
+      await setDoc(docRef, data, { merge: true });
+      set({ settings: data });
+    } catch (error) {
+      console.error("Update settings failed:", error);
     }
   },
 
@@ -91,13 +101,12 @@ export const useDB = create<DBState>((set, get) => ({
     }
   },
 
-  // ⚠️ THE FIX: Added the Logic to Save/Remove Items
   toggleWishlist: (id) => set((state) => {
     const isSaved = state.wishlist.includes(id);
     return { 
         wishlist: isSaved 
-            ? state.wishlist.filter(item => item !== id) // Remove if there
-            : [...state.wishlist, id] // Add if not
+            ? state.wishlist.filter(item => item !== id)
+            : [...state.wishlist, id]
     };
   }),
 
