@@ -8,7 +8,7 @@ const writeFile = (filePath, content) => {
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log("Successfully Fixed: " + filePath);
+  console.log("Cleaned: " + filePath);
 };
 
 const files = {
@@ -24,12 +24,15 @@ import { ShoppingBag, Menu, X, User, Zap, Heart } from 'lucide-react';
 export default function Navbar() {
   const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  // ⚠️ THE FIX: Removed 'currency' and 'toggleCurrency'
+  
+  // ⚠️ CLEANUP: Destructuring only what exists in the Store
   const { cart, toggleCart } = useStore();
   const { user } = useAuth();
   const { wishlist } = useDB();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (!mounted) return null;
 
@@ -44,13 +47,6 @@ export default function Navbar() {
             </div>
             <span className="text-xl font-black uppercase italic tracking-tighter text-white group-hover:text-brand-neon transition-colors">CACTUS BEAR</span>
         </Link>
-
-        {/* Desktop Links */}
-        <div className="hidden md:flex items-center gap-10">
-          <Link href="/shop" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Archive</Link>
-          <Link href="/collections" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Utopia</Link>
-          <Link href="/admin" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50 hover:text-brand-neon transition-colors">Operator</Link>
-        </div>
 
         {/* Icons */}
         <div className="flex items-center gap-6">
@@ -85,4 +81,4 @@ export default function Navbar() {
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
 
-console.log("NAVBAR CLEANED. Push to GitHub now.");
+console.log("NAVBAR ERROR ELIMINATED. Run your git commands now.");
