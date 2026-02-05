@@ -1,22 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 
-// FORCE UPDATE IN CURRENT FOLDER
 const rootDir = process.cwd(); 
-console.log(`\x1b[35m🌵 FIXING VERCEL BUILD (Syncing Admin & Store) in: ${rootDir}...\x1b[0m`);
 
 const writeFile = (filePath, content) => {
   const absolutePath = path.join(rootDir, filePath);
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log(`\x1b[32m  -> Overwritten: ${filePath}\x1b[0m`);
+  console.log("Successfully Synchronized: " + filePath);
 };
 
 const files = {
-  // ==========================================
-  // 1. THE DATABASE STORE (The Brain)
-  // ==========================================
+  // 1. THE DATABASE STORE
   'store/useDB.ts': `
 import { create } from 'zustand';
 import { db } from '@/lib/firebase';
@@ -40,10 +36,9 @@ interface DBState {
   settings: { nextDrop: string; announcement: string }; 
   wishlist: string[];
   loading: boolean;
-  
   fetchProducts: () => Promise<void>;
   fetchSettings: () => Promise<void>;
-  updateSettings: (data: any) => Promise<void>; // <--- Added this
+  updateSettings: (data: any) => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
@@ -55,248 +50,107 @@ export const useDB = create<DBState>((set, get) => ({
   settings: { nextDrop: '', announcement: '' },
   wishlist: [],
   loading: false,
-
   fetchProducts: async () => {
     set({ loading: true });
     try {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const products = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Product[];
-      set({ products, loading: false });
-    } catch (error) {
-      console.error("Fetch products failed:", error);
-      set({ loading: false });
-    }
+      const snap = await getDocs(collection(db, "products"));
+      const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+      set({ products: items, loading: false });
+    } catch (e) { set({ loading: false }); }
   },
-
   fetchSettings: async () => {
-    try {
-      const docRef = doc(db, "settings", "general");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        set({ settings: docSnap.data() as any });
-      }
-    } catch (error) {
-      console.error("Fetch settings failed:", error);
-    }
+    const snap = await getDoc(doc(db, "settings", "general"));
+    if (snap.exists()) set({ settings: snap.data() as any });
   },
-
   updateSettings: async (data) => {
-    try {
-      const docRef = doc(db, "settings", "general");
-      await setDoc(docRef, data, { merge: true });
-      set({ settings: data });
-    } catch (error) {
-      console.error("Update settings failed:", error);
-    }
+    await setDoc(doc(db, "settings", "general"), data, { merge: true });
+    set({ settings: data });
   },
-
   updateProduct: async (id, data) => {
-    try {
-      const productRef = doc(db, "products", id);
-      await updateDoc(productRef, data);
-      await get().fetchProducts(); 
-    } catch (error) {
-      console.error("Update product failed:", error);
-    }
+    await updateDoc(doc(db, "products", id), data);
+    await get().fetchProducts(); 
   },
-
   deleteProduct: async (id) => {
-    try {
-      await deleteDoc(doc(db, "products", id));
-      await get().fetchProducts();
-    } catch (error) {
-      console.error("Delete product failed:", error);
-    }
+    await deleteDoc(doc(db, "products", id));
+    await get().fetchProducts();
   },
-
   addProduct: async (data) => {
-    try {
-      await addDoc(collection(db, "products"), data);
-      await get().fetchProducts();
-    } catch (error) {
-      console.error("Add product failed:", error);
-    }
+    await addDoc(collection(db, "products"), data);
+    await get().fetchProducts();
   },
-
-  toggleWishlist: (id) => set((state) => {
-    const isSaved = state.wishlist.includes(id);
-    return { 
-        wishlist: isSaved 
-            ? state.wishlist.filter(item => item !== id)
-            : [...state.wishlist, id]
-    };
-  }),
-
+  toggleWishlist: (id) => set((s) => ({
+    wishlist: s.wishlist.includes(id) ? s.wishlist.filter(i => i !== id) : [...s.wishlist, id]
+  })),
 }));
 `,
 
-  // ==========================================
-  // 2. THE ADMIN PAGE (The Interface)
-  // ==========================================
+  // 2. THE ADMIN PAGE
   'app/admin/page.tsx': `
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDB, Product } from '@/store/useDB';
 import { useRouter } from 'next/navigation';
-import { Trash2, Plus, Save, X, Edit2, Loader2, Package, Clock } from 'lucide-react';
+import { Trash2, Plus, Save, X, Edit2, Loader2, Package, Clock, ShieldAlert } from 'lucide-react';
+
+const ADMIN_EMAIL = "chibundusadiq@gmail.com";
 
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
-  // ⚠️ CORRECT NAMES: addProduct, settings, updateSettings
-  const { products, fetchProducts, updateProduct, deleteProduct, addProduct, settings, updateSettings, fetchSettings } = useDB();
+  const { products, fetchProducts, deleteProduct, addProduct, settings, updateSettings, fetchSettings } = useDB();
   const router = useRouter();
   
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<Product>>({});
-  const [isAdding, setIsAdding] = useState(false);
-  
-  // Drop Timer Form
-  const [dropTime, setDropTime] = useState('');
-  const [announcement, setAnnouncement] = useState('');
-
+  const [activeTab, setActiveTab] = useState('inventory');
   const [newProduct, setNewProduct] = useState({
-      name: '', price: 0, category: 'Tees', collection: 'Utopia', 
-      images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black'
+      name: '', price: '', category: 'clothes', collection: 'Utopia', 
+      images: '', status: 'available', sizes: 'S, M, L, XL', colors: 'Black'
   });
 
   useEffect(() => {
-    if (!authLoading && (!user || user.email !== 'chibundusadiq@gmail.com')) {
+    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
         router.push('/');
+    } else if (user) {
+        fetchProducts();
+        fetchSettings();
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
-    fetchProducts();
-    fetchSettings();
-  }, [fetchProducts, fetchSettings]);
-
-  const handleSaveSettings = async () => {
-    await updateSettings({ nextDrop: dropTime, announcement });
-    alert("Settings Saved");
-  };
-
-  const handleSave = async (id: string) => {
-      await updateProduct(id, editForm);
-      setEditingId(null);
-  };
-
-  const handleAdd = async () => {
+  const handleAdd = async (e: any) => {
+      e.preventDefault();
       await addProduct({
-          name: newProduct.name,
+          ...newProduct,
           price: Number(newProduct.price),
           images: newProduct.images.split(',').map(s => s.trim()),
-          category: newProduct.category,
-          collection: newProduct.collection,
-          description: newProduct.description,
-          status: newProduct.status,
           sizes: newProduct.sizes.split(',').map(s => s.trim()),
-          colors: newProduct.colors.split(',').map(s => s.trim())
+          colors: newProduct.colors.split(',').map(s => s.trim()),
+          description: 'Admin'
       });
-      setIsAdding(false);
-      setNewProduct({ name: '', price: 0, category: 'Tees', collection: 'Utopia', images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black' });
+      alert('Product Deployed');
   };
 
-  if (authLoading || !user) return <div className="min-h-screen bg-black flex items-center justify-center text-brand-neon"><Loader2 className="animate-spin"/></div>;
+  if (authLoading || !user) return <div className="min-h-screen bg-black" />;
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 px-6 pb-20">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-black text-white pt-32 px-6">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-12">Command Center</h1>
         
-        {/* HEADER */}
-        <div className="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
-            <div>
-                <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-2">Command Center</h1>
-                <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Inventory & Drop Management</p>
+        <div className="grid md:grid-cols-2 gap-12">
+            <form onSubmit={handleAdd} className="space-y-4 bg-zinc-900/50 p-6 border border-white/10">
+                <input placeholder="Name" className="w-full bg-black border border-white/10 p-3 text-sm" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                <input placeholder="Price" type="number" className="w-full bg-black border border-white/10 p-3 text-sm" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
+                <textarea placeholder="Image Links (comma separated)" className="w-full bg-black border border-white/10 p-3 text-sm h-32" value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
+                <button className="w-full bg-brand-neon text-black font-black py-4 uppercase text-xs">Deploy Asset</button>
+            </form>
+
+            <div className="space-y-2">
+                {products.map(p => (
+                    <div key={p.id} className="p-4 border border-white/5 bg-zinc-900/20 flex justify-between items-center">
+                        <span className="text-xs font-bold uppercase tracking-widest">{p.name}</span>
+                        <button onClick={() => deleteProduct(p.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button>
+                    </div>
+                ))}
             </div>
-            <button onClick={() => setIsAdding(true)} className="bg-white text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-brand-neon transition-colors flex items-center gap-2">
-                <Plus size={16} /> New Asset
-            </button>
-        </div>
-
-        {/* SETTINGS PANEL */}
-        <div className="bg-[#0a0a0a] border border-white/10 p-6 mb-12 flex flex-col md:flex-row gap-6 items-end">
-             <div className="flex-1 w-full">
-                 <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block flex items-center gap-2"><Clock size={12}/> Next Drop Date</label>
-                 <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="Oct 20, 2024" defaultValue={settings?.nextDrop} onChange={(e) => setDropTime(e.target.value)} />
-             </div>
-             <div className="flex-1 w-full">
-                 <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Announcement Bar</label>
-                 <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="FREE SHIPPING ON ALL ORDERS" defaultValue={settings?.announcement} onChange={(e) => setAnnouncement(e.target.value)} />
-             </div>
-             <button onClick={handleSaveSettings} className="bg-brand-neon text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-white transition-colors">
-                Update Settings
-             </button>
-        </div>
-
-        {/* ADD NEW PRODUCT FORM */}
-        {isAdding && (
-            <div className="bg-[#0a0a0a] border border-brand-neon/50 p-8 mb-12 relative animate-in fade-in slide-in-from-top-4">
-                <button onClick={() => setIsAdding(false)} className="absolute top-4 right-4 text-white/30 hover:text-white"><X size={20}/></button>
-                <h3 className="text-xl font-bold uppercase text-white mb-6 flex items-center gap-2"><Package size={20}/> Deploy New Product</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div className="col-span-2 md:col-span-1">
-                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Name</label>
-                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Price (NGN)</label>
-                        <input type="number" className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="0" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} />
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Status</label>
-                        <select className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" value={newProduct.status} onChange={e => setNewProduct({...newProduct, status: e.target.value})}>
-                            <option value="Available">Available</option>
-                            <option value="Sold Out">Sold Out</option>
-                            <option value="Pre-Order">Pre-Order</option>
-                        </select>
-                    </div>
-                    <div className="col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Image Links (Comma Separated)</label>
-                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none font-mono" placeholder="https://..., https://..." value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
-                    </div>
-                    <div className="col-span-2">
-                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Description</label>
-                        <textarea className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none h-24" placeholder="Product details..." value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
-                    </div>
-                </div>
-                <button onClick={handleAdd} className="mt-6 w-full bg-brand-neon text-black font-black py-4 uppercase tracking-[0.2em] hover:bg-white transition-colors">Confirm Deployment</button>
-            </div>
-        )}
-
-        {/* PRODUCT LIST */}
-        <div className="space-y-4">
-            {products.map((product) => (
-                <div key={product.id} className="bg-[#0a0a0a] border border-white/5 p-6 flex flex-col md:flex-row items-center gap-6 group hover:border-white/20 transition-all">
-                    <div className="h-16 w-16 bg-zinc-900 bg-cover bg-center border border-white/10" style={{backgroundImage: \`url(\${product.images[0]})\`}}></div>
-                    
-                    <div className="flex-1 w-full">
-                        {editingId === product.id ? (
-                            <div className="grid grid-cols-2 gap-4">
-                                <input className="bg-black border border-brand-neon p-2 text-white" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
-                                <input className="bg-black border border-brand-neon p-2 text-white" type="number" value={editForm.price} onChange={(e) => setEditForm({...editForm, price: Number(e.target.value)})} />
-                            </div>
-                        ) : (
-                            <div>
-                                <h3 className="text-xl font-bold uppercase italic">{product.name}</h3>
-                                <p className="text-brand-neon font-mono text-sm">₦{product.price.toLocaleString()}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        {editingId === product.id ? (
-                            <button onClick={() => handleSave(product.id)} className="bg-green-600 text-white p-3 hover:bg-green-500"><Save size={18} /></button>
-                        ) : (
-                            <button onClick={() => { setEditingId(product.id); setEditForm(product); }} className="bg-white/5 text-white p-3 hover:bg-white/20"><Edit2 size={18} /></button>
-                        )}
-                        <button onClick={() => deleteProduct(product.id)} className="bg-red-900/20 text-red-500 p-3 hover:bg-red-600 hover:text-white"><Trash2 size={18} /></button>
-                    </div>
-                </div>
-            ))}
         </div>
       </div>
     </div>
@@ -306,4 +160,5 @@ export default function AdminPage() {
 };
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
-console.log(`\n\x1b[32m✅ SYNC COMPLETE: 'addProduct' and 'updateSettings' are now active in both files.\x1b[0m`);
+
+console.log("REPAIR COMPLETE. Run your git commands now.");

@@ -20,10 +20,9 @@ interface DBState {
   settings: { nextDrop: string; announcement: string }; 
   wishlist: string[];
   loading: boolean;
-  
   fetchProducts: () => Promise<void>;
   fetchSettings: () => Promise<void>;
-  updateSettings: (data: any) => Promise<void>; // <--- Added this
+  updateSettings: (data: any) => Promise<void>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
@@ -35,79 +34,35 @@ export const useDB = create<DBState>((set, get) => ({
   settings: { nextDrop: '', announcement: '' },
   wishlist: [],
   loading: false,
-
   fetchProducts: async () => {
     set({ loading: true });
     try {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const products = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Product[];
-      set({ products, loading: false });
-    } catch (error) {
-      console.error("Fetch products failed:", error);
-      set({ loading: false });
-    }
+      const snap = await getDocs(collection(db, "products"));
+      const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+      set({ products: items, loading: false });
+    } catch (e) { set({ loading: false }); }
   },
-
   fetchSettings: async () => {
-    try {
-      const docRef = doc(db, "settings", "general");
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        set({ settings: docSnap.data() as any });
-      }
-    } catch (error) {
-      console.error("Fetch settings failed:", error);
-    }
+    const snap = await getDoc(doc(db, "settings", "general"));
+    if (snap.exists()) set({ settings: snap.data() as any });
   },
-
   updateSettings: async (data) => {
-    try {
-      const docRef = doc(db, "settings", "general");
-      await setDoc(docRef, data, { merge: true });
-      set({ settings: data });
-    } catch (error) {
-      console.error("Update settings failed:", error);
-    }
+    await setDoc(doc(db, "settings", "general"), data, { merge: true });
+    set({ settings: data });
   },
-
   updateProduct: async (id, data) => {
-    try {
-      const productRef = doc(db, "products", id);
-      await updateDoc(productRef, data);
-      await get().fetchProducts(); 
-    } catch (error) {
-      console.error("Update product failed:", error);
-    }
+    await updateDoc(doc(db, "products", id), data);
+    await get().fetchProducts(); 
   },
-
   deleteProduct: async (id) => {
-    try {
-      await deleteDoc(doc(db, "products", id));
-      await get().fetchProducts();
-    } catch (error) {
-      console.error("Delete product failed:", error);
-    }
+    await deleteDoc(doc(db, "products", id));
+    await get().fetchProducts();
   },
-
   addProduct: async (data) => {
-    try {
-      await addDoc(collection(db, "products"), data);
-      await get().fetchProducts();
-    } catch (error) {
-      console.error("Add product failed:", error);
-    }
+    await addDoc(collection(db, "products"), data);
+    await get().fetchProducts();
   },
-
-  toggleWishlist: (id) => set((state) => {
-    const isSaved = state.wishlist.includes(id);
-    return { 
-        wishlist: isSaved 
-            ? state.wishlist.filter(item => item !== id)
-            : [...state.wishlist, id]
-    };
-  }),
-
+  toggleWishlist: (id) => set((s) => ({
+    wishlist: s.wishlist.includes(id) ? s.wishlist.filter(i => i !== id) : [...s.wishlist, id]
+  })),
 }));
