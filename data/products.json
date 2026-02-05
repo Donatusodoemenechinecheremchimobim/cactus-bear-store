@@ -1,0 +1,122 @@
+[
+  {
+    "id": "prod-1767033616244",
+    "name": "CACTUS BEAR SHIRT",
+    "price": 33,
+    "images": [
+      "https://i.imgur.com/55oThCy.jpeg",
+      "https://i.imgur.com/V6TYkUH.jpeg",
+      "https://i.imgur.com/v4Rto7b.jpeg",
+      "https://i.imgur.com/zdPliGV.jpeg"
+    ],
+    "colors": [
+      "Black",
+      "White",
+      "Brown",
+      "Dark Green"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "category": "clothes",
+    "collection": "Collection 001",
+    "description": "Added via Admin"
+  },
+  {
+    "id": "prod-1767033754852",
+    "name": "CACTUS BEAR FACE CAP",
+    "price": 33,
+    "images": [
+      "https://i.imgur.com/RclFUEM.jpeg",
+      "https://i.imgur.com/a70zEvY.jpeg",
+      "https://i.imgur.com/AWrZRLN.jpeg"
+    ],
+    "colors": [
+      "Black",
+      "Green",
+      "Brown"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "category": "clothes",
+    "collection": "Collection 001",
+    "description": "Added via Admin"
+  },
+  {
+    "id": "prod-1767033890738",
+    "name": "CACTUS BEAR SWEATSHIRT",
+    "price": 33,
+    "images": [
+      "https://i.imgur.com/KPNzKCk.jpeg",
+      "https://i.imgur.com/FkTaqCC.jpeg",
+      "https://i.imgur.com/Ki9cky7.jpeg"
+    ],
+    "colors": [
+      "Black",
+      "Brown",
+      "Dark Green"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "category": "clothes",
+    "collection": "Collection 001",
+    "description": "Added via Admin"
+  },
+  {
+    "id": "prod-1767033999803",
+    "name": "CACTUS BEAR JERSEY",
+    "price": 33,
+    "images": [
+      "https://i.imgur.com/d7BGDSs.jpeg",
+      "https://i.imgur.com/ry8WKVR.jpeg",
+      "https://i.imgur.com/2yzUlvk.jpeg"
+    ],
+    "colors": [
+      "Black",
+      "Green",
+      "Brown"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "category": "clothes",
+    "collection": "Collection 001",
+    "description": "Added via Admin"
+  },
+  {
+    "id": "prod-1767034092509",
+    "name": "CACTUS BEAR CROP TOP",
+    "price": 33,
+    "images": [
+      "https://i.imgur.com/KuuxDeM.jpeg",
+      "https://i.imgur.com/oj6YUnp.jpeg"
+    ],
+    "colors": [
+      "Black",
+      "White"
+    ],
+    "sizes": [
+      "S",
+      "M",
+      "L",
+      "XL"
+    ],
+    "category": "clothes",
+    "collection": "Collection 001",
+    "description": "Added via Admin"
+  }
+]
