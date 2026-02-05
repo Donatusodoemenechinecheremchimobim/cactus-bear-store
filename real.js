@@ -8,149 +8,96 @@ const writeFile = (filePath, content) => {
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log("Successfully Synchronized: " + filePath);
+  console.log("Successfully Fixed: " + filePath);
 };
 
 const files = {
-  // 1. THE DATABASE STORE
-  'store/useDB.ts': `
-import { create } from 'zustand';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc, getDoc, setDoc } from 'firebase/firestore';
-
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  images: string[];
-  category: string;
-  collection: string;
-  description: string;
-  sizes: string[];
-  colors: string[];
-  status: string;
-}
-
-interface DBState {
-  products: Product[];
-  settings: { nextDrop: string; announcement: string }; 
-  wishlist: string[];
-  loading: boolean;
-  fetchProducts: () => Promise<void>;
-  fetchSettings: () => Promise<void>;
-  updateSettings: (data: any) => Promise<void>;
-  updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
-  deleteProduct: (id: string) => Promise<void>;
-  addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
-  toggleWishlist: (id: string) => void;
-}
-
-export const useDB = create<DBState>((set, get) => ({
-  products: [],
-  settings: { nextDrop: '', announcement: '' },
-  wishlist: [],
-  loading: false,
-  fetchProducts: async () => {
-    set({ loading: true });
-    try {
-      const snap = await getDocs(collection(db, "products"));
-      const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
-      set({ products: items, loading: false });
-    } catch (e) { set({ loading: false }); }
-  },
-  fetchSettings: async () => {
-    const snap = await getDoc(doc(db, "settings", "general"));
-    if (snap.exists()) set({ settings: snap.data() as any });
-  },
-  updateSettings: async (data) => {
-    await setDoc(doc(db, "settings", "general"), data, { merge: true });
-    set({ settings: data });
-  },
-  updateProduct: async (id, data) => {
-    await updateDoc(doc(db, "products", id), data);
-    await get().fetchProducts(); 
-  },
-  deleteProduct: async (id) => {
-    await deleteDoc(doc(db, "products", id));
-    await get().fetchProducts();
-  },
-  addProduct: async (data) => {
-    await addDoc(collection(db, "products"), data);
-    await get().fetchProducts();
-  },
-  toggleWishlist: (id) => set((s) => ({
-    wishlist: s.wishlist.includes(id) ? s.wishlist.filter(i => i !== id) : [...s.wishlist, id]
-  })),
-}));
-`,
-
-  // 2. THE ADMIN PAGE
-  'app/admin/page.tsx': `
+  'components/CartDrawer.tsx': `
 "use client";
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useDB, Product } from '@/store/useDB';
-import { useRouter } from 'next/navigation';
-import { Trash2, Plus, Save, X, Edit2, Loader2, Package, Clock, ShieldAlert } from 'lucide-react';
+import { useStore } from '@/store/useStore';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const ADMIN_EMAIL = "chibundusadiq@gmail.com";
-
-export default function AdminPage() {
-  const { user, loading: authLoading } = useAuth();
-  const { products, fetchProducts, deleteProduct, addProduct, settings, updateSettings, fetchSettings } = useDB();
-  const router = useRouter();
+export default function CartDrawer() {
+  const { cart, isCartOpen, toggleCart, removeFromCart, updateQuantity } = useStore();
   
-  const [activeTab, setActiveTab] = useState('inventory');
-  const [newProduct, setNewProduct] = useState({
-      name: '', price: '', category: 'clothes', collection: 'Utopia', 
-      images: '', status: 'available', sizes: 'S, M, L, XL', colors: 'Black'
-  });
+  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  useEffect(() => {
-    if (!authLoading && (!user || user.email !== ADMIN_EMAIL)) {
-        router.push('/');
-    } else if (user) {
-        fetchProducts();
-        fetchSettings();
-    }
-  }, [user, authLoading, router]);
-
-  const handleAdd = async (e: any) => {
-      e.preventDefault();
-      await addProduct({
-          ...newProduct,
-          price: Number(newProduct.price),
-          images: newProduct.images.split(',').map(s => s.trim()),
-          sizes: newProduct.sizes.split(',').map(s => s.trim()),
-          colors: newProduct.colors.split(',').map(s => s.trim()),
-          description: 'Admin'
-      });
-      alert('Product Deployed');
-  };
-
-  if (authLoading || !user) return <div className="min-h-screen bg-black" />;
+  if (!isCartOpen) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white pt-32 px-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-12">Command Center</h1>
-        
-        <div className="grid md:grid-cols-2 gap-12">
-            <form onSubmit={handleAdd} className="space-y-4 bg-zinc-900/50 p-6 border border-white/10">
-                <input placeholder="Name" className="w-full bg-black border border-white/10 p-3 text-sm" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                <input placeholder="Price" type="number" className="w-full bg-black border border-white/10 p-3 text-sm" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                <textarea placeholder="Image Links (comma separated)" className="w-full bg-black border border-white/10 p-3 text-sm h-32" value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
-                <button className="w-full bg-brand-neon text-black font-black py-4 uppercase text-xs">Deploy Asset</button>
-            </form>
-
-            <div className="space-y-2">
-                {products.map(p => (
-                    <div key={p.id} className="p-4 border border-white/5 bg-zinc-900/20 flex justify-between items-center">
-                        <span className="text-xs font-bold uppercase tracking-widest">{p.name}</span>
-                        <button onClick={() => deleteProduct(p.id)} className="text-red-500/50 hover:text-red-500"><Trash2 size={16}/></button>
-                    </div>
-                ))}
+    <div className="fixed inset-0 z-[100] overflow-hidden">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={toggleCart} />
+      
+      <div className="absolute inset-y-0 right-0 max-w-full flex">
+        <div className="w-screen max-w-md">
+          <div className="h-full flex flex-col bg-black border-l border-white/10 shadow-2xl">
+            
+            {/* Header */}
+            <div className="px-6 py-8 border-b border-white/5 flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-black uppercase italic text-white leading-none">Your Stash</h2>
+                    <p className="text-[10px] font-mono text-white/40 uppercase tracking-[0.2em] mt-1">{cart.length} UNITS LOADED</p>
+                </div>
+                <button onClick={toggleCart} className="p-2 hover:bg-white/5 transition-colors text-white/50 hover:text-white">
+                    <X size={24} />
+                </button>
             </div>
+
+            {/* Items */}
+            <div className="flex-1 overflow-y-auto px-6 py-8 space-y-6 scrollbar-hide">
+              {cart.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-20">
+                    <ShoppingBag size={48} />
+                    <p className="font-mono text-[10px] uppercase tracking-widest text-center">Empty Inventory // System Idle</p>
+                </div>
+              ) : (
+                cart.map((item, idx) => (
+                  <div key={idx} className="flex gap-4 p-4 bg-white/5 border border-white/5 hover:border-brand-neon/30 transition-colors group">
+                    {/* FIXED LINE BELOW: Changed item.images[0] to item.image */}
+                    <div className="w-24 h-24 bg-white/5 bg-cover bg-center" style={{ backgroundImage: \`url(\${item.image})\` }} />
+                    
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <h3 className="font-bold uppercase text-white leading-none mb-1 text-sm">{item.name}</h3>
+                        <p className="text-[10px] font-mono text-brand-neon uppercase tracking-tighter italic">{item.size} // ₦{item.price.toLocaleString()}</p>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center border border-white/10">
+                            <button onClick={() => updateQuantity(item.id, item.size, item.quantity - 1)} className="p-1 hover:text-brand-neon"><Minus size={12} /></button>
+                            <span className="px-3 text-xs font-mono">{item.quantity}</span>
+                            <button onClick={() => updateQuantity(item.id, item.size, item.quantity + 1)} className="p-1 hover:text-brand-neon"><Plus size={12} /></button>
+                        </div>
+                        <button onClick={() => removeFromCart(item.id, item.size)} className="text-white/20 hover:text-red-500 transition-colors">
+                            <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            {cart.length > 0 && (
+                <div className="px-6 py-8 border-t border-white/10 bg-zinc-900/20">
+                    <div className="flex justify-between items-end mb-6">
+                        <span className="text-[10px] font-black uppercase text-white/40 tracking-[0.3em]">Total Value</span>
+                        <span className="text-2xl font-black text-brand-neon font-mono italic">₦{total.toLocaleString()}</span>
+                    </div>
+                    <Link 
+                        href="/checkout" 
+                        onClick={toggleCart}
+                        className="w-full bg-brand-neon text-black font-black py-5 uppercase tracking-[0.2em] text-xs hover:bg-white transition-all flex items-center justify-center gap-3 group"
+                    >
+                        Initialize Checkout <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                </div>
+            )}
+
+          </div>
         </div>
       </div>
     </div>
@@ -161,4 +108,4 @@ export default function AdminPage() {
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
 
-console.log("REPAIR COMPLETE. Run your git commands now.");
+console.log("REPAIR COMPLETE. Push to GitHub now.");
