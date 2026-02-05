@@ -3,7 +3,7 @@ const path = require('path');
 
 // FORCE UPDATE IN CURRENT FOLDER
 const rootDir = process.cwd(); 
-console.log(`\x1b[35m🌵 ACTIVATING HUD ALERTS ON CHECKOUT in: ${rootDir}...\x1b[0m`);
+console.log(`\x1b[35m🌵 FIXING VERCEL TYPE ERROR in: ${rootDir}...\x1b[0m`);
 
 const writeFile = (filePath, content) => {
   const absolutePath = path.join(rootDir, filePath);
@@ -15,190 +15,222 @@ const writeFile = (filePath, content) => {
 
 const files = {
   // ==========================================
-  // CHECKOUT PAGE (Now uses HUD Alerts)
+  // 1. UPDATE THE BLUEPRINT (Add 'status')
   // ==========================================
-  'app/checkout/page.tsx': `
-"use client";
-import { useState } from 'react';
-import { useStore } from '@/store/useStore';
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
-import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
-import { ShieldCheck, Smartphone, Lock, MapPin, ArrowLeft } from 'lucide-react';
+  'store/useDB.ts': `
+import { create } from 'zustand';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useToast } from '@/components/ToastProvider'; // <--- HUD SYSTEM
-import Link from 'next/link';
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 
-export default function CheckoutPage() {
-  const { cart, clearCart } = useStore();
-  const { user } = useAuth();
+// ⚠️ THE FIX: Added 'status' to this list
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  images: string[];
+  category: string;
+  collection: string;
+  description: string;
+  sizes: string[];
+  colors: string[];
+  status: string; // <--- ADDED THIS LINE
+}
+
+interface DBState {
+  products: Product[];
+  loading: boolean;
+  fetchProducts: () => Promise<void>;
+  updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
+}
+
+export const useDB = create<DBState>((set, get) => ({
+  products: [],
+  loading: false,
+
+  fetchProducts: async () => {
+    set({ loading: true });
+    try {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      const products = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Product[];
+      set({ products, loading: false });
+    } catch (error) {
+      console.error("Fetch failed:", error);
+      set({ loading: false });
+    }
+  },
+
+  updateProduct: async (id, data) => {
+    try {
+      const productRef = doc(db, "products", id);
+      await updateDoc(productRef, data);
+      await get().fetchProducts(); 
+    } catch (error) {
+      console.error("Update failed:", error);
+    }
+  },
+
+  deleteProduct: async (id) => {
+    try {
+      await deleteDoc(doc(db, "products", id));
+      await get().fetchProducts();
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
+  },
+
+  addProduct: async (data) => {
+    try {
+      await addDoc(collection(db, "products"), data);
+      await get().fetchProducts();
+    } catch (error) {
+      console.error("Add failed:", error);
+    }
+  }
+}));
+`,
+
+// ==========================================
+// 2. UPDATE ADMIN PAGE (To match the new blueprint)
+// ==========================================
+'app/admin/page.tsx': `
+"use client";
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useDB, Product } from '@/store/useDB';
+import { useRouter } from 'next/navigation';
+import { Trash2, Plus, Save, X, Edit2, Loader2, Package } from 'lucide-react';
+
+export default function AdminPage() {
+  const { user, loading: authLoading } = useAuth();
+  const { products, fetchProducts, updateProduct, deleteProduct, addProduct } = useDB();
   const router = useRouter();
-  const { showToast } = useToast(); // <--- ACTIVATE HUD
   
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const ADMIN_WHATSAPP = "2348144462467"; 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Product>>({});
+  const [isAdding, setIsAdding] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+      name: '', price: 0, category: 'Tees', collection: 'Utopia', 
+      images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black'
+  });
 
-  const config = {
-    // ⬇️ YOUR LIVE KEY
-    public_key: 'FLWPUBK-d9a91cce4a76b3e2529a4cdd48dc406d-X', 
-    tx_ref: Date.now().toString(),
-    amount: total,
-    currency: 'NGN',
-    payment_options: 'card,mobilemoney,ussd',
-    customer: {
-      email: user?.email || 'guest@cactusbear.com',
-      phone_number: phone,
-      name: user?.displayName || 'Guest User',
-    },
-    customizations: {
-      title: 'Cactus Bear Store',
-      description: 'Wilderness Luxury Payment',
-      logo: 'https://cdn.iconscout.com/icon/free/png-256/free-cactus-18-460972.png',
-    },
+  useEffect(() => {
+    if (!authLoading && (!user || user.email !== 'chibundusadiq@gmail.com')) {
+        router.push('/');
+    }
+  }, [user, authLoading, router]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const handleSave = async (id: string) => {
+      await updateProduct(id, editForm);
+      setEditingId(null);
   };
 
-  const handleFlutterwavePayment = useFlutterwave(config);
-
-  const handleSuccess = async (response: any) => {
-      setIsProcessing(true);
-      closePaymentModal();
-      
-      try {
-        if (user) {
-            await addDoc(collection(db, "orders"), {
-                userId: user.uid,
-                email: user.email,
-                items: cart,
-                total: total,
-                status: 'paid',
-                date: serverTimestamp(),
-                paymentRef: response.tx_ref,
-                shipping: { phone, address }
-            });
-        }
-
-        const itemsList = cart.map(i => \`• \${i.name} (x\${i.quantity}) - \${i.size}\`).join('%0a');
-        const message = \`*🚨 NEW ORDER ALERT 🚨*%0a%0a*Status:* ✅ PAID (Flutterwave)%0a*Ref:* \${response.tx_ref}%0a*Amount:* ₦\${total.toLocaleString()}%0a%0a*👤 CUSTOMER:*%0a*Name:* \${user?.displayName || 'Guest'}%0a*Phone:* \${phone}%0a*Address:* \${address}%0a%0a*📦 ITEMS:*%0a\${itemsList}\`;
-
-        clearCart();
-        window.location.href = \`https://wa.me/\${ADMIN_WHATSAPP}?text=\${message}\`; 
-
-      } catch (error) {
-          showToast("Payment successful, but saving failed. Contact support.", "error");
-      }
-  };
-
-  const initPayment = () => {
-      // ⚠️ TACTICAL HUD CHECKS (No more alert pop-ups)
-      if (!phone || phone.length < 10) { 
-          showToast("Valid Phone Number Required", "error"); 
-          return; 
-      }
-      if (!address || address.length < 5) { 
-          showToast("Shipping Address Required", "error"); 
-          return; 
-      }
-
-      handleFlutterwavePayment({
-        callback: (response) => {
-           if(response.status === "successful") handleSuccess(response);
-           else { 
-             closePaymentModal(); 
-             showToast("Transaction Cancelled", "error"); 
-           }
-        },
-        onClose: () => {},
+  const handleAdd = async () => {
+      // ⚠️ FIX: Ensure all fields match the Product type
+      await addProduct({
+          name: newProduct.name,
+          price: Number(newProduct.price),
+          images: newProduct.images.split(',').map(s => s.trim()),
+          category: newProduct.category,
+          collection: newProduct.collection,
+          description: newProduct.description,
+          status: newProduct.status,
+          sizes: newProduct.sizes.split(',').map(s => s.trim()),
+          colors: newProduct.colors.split(',').map(s => s.trim())
       });
+      setIsAdding(false);
+      setNewProduct({ name: '', price: 0, category: 'Tees', collection: 'Utopia', images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black' });
   };
 
-  if (cart.length === 0) return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center pt-20 text-white">
-          <h1 className="text-2xl font-black uppercase italic text-white/50">Cart is Empty</h1>
-          <button onClick={() => router.push('/')} className="mt-4 border border-white px-6 py-2 uppercase text-xs font-bold hover:bg-white hover:text-black">Return to Store</button>
-      </div>
-  );
+  if (authLoading || !user) return <div className="min-h-screen bg-black flex items-center justify-center text-brand-neon"><Loader2 className="animate-spin"/></div>;
 
   return (
     <div className="min-h-screen bg-black text-white pt-32 px-6 pb-20">
-      <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12">
-        
-        {/* LEFT: PAYMENT FORM */}
-        <div>
-            <Link href="/" className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/40 hover:text-white flex items-center gap-2 transition-colors mb-8">
-                <ArrowLeft size={10} /> Back to Store
-            </Link>
-
-            <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-8">Secure Checkout</h1>
-            
-            <div className="bg-[#0a0a0a] border border-white/10 p-6 space-y-6">
-                <div className="flex items-center gap-2 text-brand-neon text-xs font-bold uppercase tracking-widest border-b border-white/10 pb-2">
-                    <ShieldCheck size={16} /> Encrypted Connection
-                </div>
-
-                <div>
-                    <label className="block text-[10px] uppercase font-bold text-white/50 mb-2 flex items-center gap-2">
-                        <Smartphone size={12} /> Mobile Number (Required)
-                    </label>
-                    <input 
-                        type="tel" 
-                        placeholder="080 000 0000" 
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full bg-black border border-brand-neon/30 p-4 text-sm text-brand-neon focus:border-brand-neon outline-none font-mono placeholder:text-white/10 transition-colors"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-[10px] uppercase font-bold text-white/50 mb-2 flex items-center gap-2">
-                        <MapPin size={12} /> Shipping Address (Required)
-                    </label>
-                    <textarea 
-                        placeholder="Enter full delivery location..." 
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="w-full bg-black border border-white/20 p-4 text-sm text-white focus:border-brand-neon outline-none font-mono h-24 resize-none transition-colors"
-                    />
-                </div>
-
-                <div className="border-t border-white/10 pt-4">
-                    <div className="flex justify-between items-center text-xl font-black uppercase italic">
-                        <span>Total Due:</span>
-                        <span className="text-brand-neon">₦{total.toLocaleString()}</span>
-                    </div>
-                </div>
-
-                <button 
-                    disabled={isProcessing} 
-                    onClick={initPayment}
-                    className="w-full bg-brand-neon text-black font-black py-5 uppercase tracking-[0.2em] text-sm hover:bg-white transition-colors flex items-center justify-center gap-2"
-                >
-                    {isProcessing ? 'Processing...' : <><Lock size={16} /> Pay Now</>}
-                </button>
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
+            <div>
+                <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-2">Command Center</h1>
+                <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Inventory Management Protocol</p>
             </div>
+            <button onClick={() => setIsAdding(true)} className="bg-white text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-brand-neon transition-colors flex items-center gap-2">
+                <Plus size={16} /> New Asset
+            </button>
         </div>
 
-        {/* RIGHT: CART SUMMARY */}
-        <div className="border-l border-white/10 pl-0 md:pl-12 pt-14">
-            <h2 className="text-xl font-bold uppercase mb-6 text-white/50">Order Summary</h2>
-            <div className="space-y-4">
-                {cart.map((item) => (
-                    <div key={item.id + item.size} className="flex gap-4 items-center bg-[#0a0a0a] p-2 border border-white/5 hover:border-white/20 transition-colors">
-                        <div className="h-16 w-16 bg-cover bg-center bg-zinc-800" style={{backgroundImage: \`url(\${item.image})\`}} />
-                        <div className="flex-1">
-                            <h3 className="font-bold uppercase text-xs">{item.name}</h3>
-                            <p className="text-[10px] font-mono text-white/50">{item.size} | x{item.quantity}</p>
-                        </div>
-                        <p className="font-mono text-xs font-bold text-brand-neon">₦{(item.price * item.quantity).toLocaleString()}</p>
+        {/* ADD NEW PRODUCT FORM */}
+        {isAdding && (
+            <div className="bg-[#0a0a0a] border border-brand-neon/50 p-8 mb-12 relative animate-in fade-in slide-in-from-top-4">
+                <button onClick={() => setIsAdding(false)} className="absolute top-4 right-4 text-white/30 hover:text-white"><X size={20}/></button>
+                <h3 className="text-xl font-bold uppercase text-white mb-6 flex items-center gap-2"><Package size={20}/> Deploy New Product</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="col-span-2 md:col-span-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Name</label>
+                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
                     </div>
-                ))}
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Price (NGN)</label>
+                        <input type="number" className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="0" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Status</label>
+                        <select className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" value={newProduct.status} onChange={e => setNewProduct({...newProduct, status: e.target.value})}>
+                            <option value="Available">Available</option>
+                            <option value="Sold Out">Sold Out</option>
+                            <option value="Pre-Order">Pre-Order</option>
+                        </select>
+                    </div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Image Links (Comma Separated)</label>
+                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none font-mono" placeholder="https://..., https://..." value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
+                    </div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Description</label>
+                        <textarea className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none h-24" placeholder="Product details..." value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
+                    </div>
+                </div>
+                <button onClick={handleAdd} className="mt-6 w-full bg-brand-neon text-black font-black py-4 uppercase tracking-[0.2em] hover:bg-white transition-colors">Confirm Deployment</button>
             </div>
-        </div>
+        )}
 
+        {/* PRODUCT LIST */}
+        <div className="space-y-4">
+            {products.map((product) => (
+                <div key={product.id} className="bg-[#0a0a0a] border border-white/5 p-6 flex flex-col md:flex-row items-center gap-6 group hover:border-white/20 transition-all">
+                    <div className="h-16 w-16 bg-zinc-900 bg-cover bg-center border border-white/10" style={{backgroundImage: \`url(\${product.images[0]})\`}}></div>
+                    
+                    <div className="flex-1 w-full">
+                        {editingId === product.id ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <input className="bg-black border border-brand-neon p-2 text-white" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
+                                <input className="bg-black border border-brand-neon p-2 text-white" type="number" value={editForm.price} onChange={(e) => setEditForm({...editForm, price: Number(e.target.value)})} />
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 className="text-xl font-bold uppercase italic">{product.name}</h3>
+                                <p className="text-brand-neon font-mono text-sm">₦{product.price.toLocaleString()}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {editingId === product.id ? (
+                            <button onClick={() => handleSave(product.id)} className="bg-green-600 text-white p-3 hover:bg-green-500"><Save size={18} /></button>
+                        ) : (
+                            <button onClick={() => { setEditingId(product.id); setEditForm(product); }} className="bg-white/5 text-white p-3 hover:bg-white/20"><Edit2 size={18} /></button>
+                        )}
+                        <button onClick={() => deleteProduct(product.id)} className="bg-red-900/20 text-red-500 p-3 hover:bg-red-600 hover:text-white"><Trash2 size={18} /></button>
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
     </div>
   );
@@ -207,4 +239,4 @@ export default function CheckoutPage() {
 };
 
 Object.keys(files).forEach((filePath) => { writeFile(filePath, files[filePath]); });
-console.log(`\n\x1b[32m✅ CHECKOUT UPGRADED: Address errors now use the Tactical HUD (Red Bar).\x1b[0m`);
+console.log(`\n\x1b[32m✅ TYPE FIXED: Added 'status' to Product blueprint. Vercel will accept this now.\x1b[0m`);

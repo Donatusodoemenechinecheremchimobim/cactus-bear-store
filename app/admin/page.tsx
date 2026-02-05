@@ -1,151 +1,136 @@
 "use client";
-import { useState, useEffect } from 'react';
-import { useDB } from '@/store/useDB';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useDB, Product } from '@/store/useDB';
 import { useRouter } from 'next/navigation';
-import { Trash2, Plus, Clock, ShieldAlert } from 'lucide-react';
+import { Trash2, Plus, Save, X, Edit2, Loader2, Package } from 'lucide-react';
 
-const ADMIN_EMAIL = "chibundusadiq@gmail.com";
-
-export default function AdminDashboard() {
+export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
-  const { products, createProduct, deleteProduct, fetchProducts, dropSettings, updateSettings, fetchSettings } = useDB();
+  const { products, fetchProducts, updateProduct, deleteProduct, addProduct } = useDB();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('inventory');
-  const [loading, setLoading] = useState(false);
-  const [hypeData, setHypeData] = useState({ dropTitle: '', dropDate: '' });
-
-  const [newProduct, setNewProduct] = useState({ 
-      name: '', price: '', images: '', colors: '', sizes: 'S, M, L, XL', 
-      collection: 'Utopia', category: 'clothes', 
-      status: 'available' 
+  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Product>>({});
+  const [isAdding, setIsAdding] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+      name: '', price: 0, category: 'Tees', collection: 'Utopia', 
+      images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black'
   });
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user || user.email !== ADMIN_EMAIL) {
-        // router.push('/'); // Uncomment to auto-kick non-admins
-    } else {
-        fetchProducts();
-        fetchSettings();
+    if (!authLoading && (!user || user.email !== 'chibundusadiq@gmail.com')) {
+        router.push('/');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
-  // Loading State
-  if (authLoading) return <div className="min-h-screen bg-black flex items-center justify-center text-white font-mono animate-pulse">AUTHENTICATING...</div>;
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
-  // Access Denied
-  if (!user || user.email !== ADMIN_EMAIL) {
-      return (
-        <div className="min-h-screen bg-black flex flex-col items-center justify-center text-red-500">
-            <ShieldAlert size={64} className="mb-4" />
-            <h1 className="text-2xl font-black uppercase">Access Denied</h1>
-            <p className="font-mono text-xs mt-2">ID: {user?.email || 'Unknown'} is not authorized.</p>
-        </div>
-      );
-  }
-
-  const handleSaveHype = async (e: React.FormEvent) => {
-      e.preventDefault();
-      await updateSettings({ dropTitle: hypeData.dropTitle, dropDate: new Date(hypeData.dropDate).toISOString() });
-      alert("✅ Hype Settings Updated!");
+  const handleSave = async (id: string) => {
+      await updateProduct(id, editForm);
+      setEditingId(null);
   };
 
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-        // @ts-ignore
-        await createProduct({ 
-            id: Math.random().toString(), 
-            name: newProduct.name || 'Untitled', 
-            price: Number(newProduct.price) || 0, 
-            images: newProduct.images ? newProduct.images.split(',').map(s => s.trim()).filter(s => s !== '') : ['https://via.placeholder.com/500'], 
-            colors: newProduct.colors ? newProduct.colors.split(',').map(s => s.trim()).filter(s => s !== '') : ['Black'], 
-            sizes: newProduct.sizes ? newProduct.sizes.split(',').map(s => s.trim()).filter(s => s !== '') : ['M'],
-            collection: newProduct.collection || 'General',
-            category: newProduct.category, 
-            description: 'Added via Admin',
-            status: newProduct.status as any 
-        });
-        alert('✅ Product Deployed!'); 
-        setNewProduct({ name: '', price: '', images: '', colors: '', sizes: 'S, M, L, XL', collection: 'Utopia', category: 'clothes', status: 'available' });
-    } catch (error: any) {
-        alert(`❌ Failed: ${error.message}`);
-    } finally { setLoading(false); }
+  const handleAdd = async () => {
+      // ⚠️ FIX: Ensure all fields match the Product type
+      await addProduct({
+          name: newProduct.name,
+          price: Number(newProduct.price),
+          images: newProduct.images.split(',').map(s => s.trim()),
+          category: newProduct.category,
+          collection: newProduct.collection,
+          description: newProduct.description,
+          status: newProduct.status,
+          sizes: newProduct.sizes.split(',').map(s => s.trim()),
+          colors: newProduct.colors.split(',').map(s => s.trim())
+      });
+      setIsAdding(false);
+      setNewProduct({ name: '', price: 0, category: 'Tees', collection: 'Utopia', images: '', description: '', status: 'Available', sizes: 'S,M,L,XL', colors: 'Black' });
   };
+
+  if (authLoading || !user) return <div className="min-h-screen bg-black flex items-center justify-center text-brand-neon"><Loader2 className="animate-spin"/></div>;
 
   return (
-    <div className="min-h-screen pt-28 px-6 bg-black text-white pb-40">
-      <div className="max-w-[1600px] mx-auto">
-        <div className="flex justify-between items-end mb-8">
+    <div className="min-h-screen bg-black text-white pt-32 px-6 pb-20">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
             <div>
-                <p className="text-xs font-mono text-white/40 uppercase mb-2">Operator: {user.email}</p>
-                <h1 className="text-4xl md:text-6xl font-black uppercase italic text-brand-neon leading-none">Command Center</h1>
+                <h1 className="text-4xl font-black uppercase italic text-brand-neon mb-2">Command Center</h1>
+                <p className="text-xs font-mono text-white/50 uppercase tracking-widest">Inventory Management Protocol</p>
             </div>
-            <div className="flex gap-2">
-                {['inventory', 'hype control'].map(tab => (
-                    <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2 font-bold uppercase tracking-widest text-[10px] border transition-colors ${activeTab === tab ? 'bg-brand-neon text-black border-brand-neon' : 'border-white/20 text-white/50 hover:border-white hover:text-white'}`}>
-                        {tab}
-                    </button>
-                ))}
-            </div>
+            <button onClick={() => setIsAdding(true)} className="bg-white text-black px-6 py-3 font-bold uppercase text-xs tracking-widest hover:bg-brand-neon transition-colors flex items-center gap-2">
+                <Plus size={16} /> New Asset
+            </button>
         </div>
 
-        {activeTab === 'inventory' && (
-            <div className="grid md:grid-cols-12 gap-8 relative">
-                <div className="md:col-span-4 lg:col-span-3">
-                    <div className="bg-[#0f0f0f] border border-white/10 p-6 sticky top-28 z-50 shadow-2xl">
-                        <h3 className="text-lg font-bold uppercase mb-4 flex items-center gap-2 text-white"><Plus className="text-brand-neon" /> Deploy Item</h3>
-                        <form onSubmit={handleAddProduct} className="space-y-3">
-                            <input placeholder="Product Name" className="w-full bg-black border border-white/20 p-3 text-xs text-white focus:border-brand-neon outline-none uppercase font-bold" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                                <input placeholder="Price (₦)" type="number" className="bg-black border border-white/20 p-3 text-xs text-white focus:border-brand-neon outline-none font-mono" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: e.target.value})} />
-                                <input placeholder="Collection" className="bg-black border border-white/20 p-3 text-xs text-white focus:border-brand-neon outline-none uppercase" value={newProduct.collection} onChange={e => setNewProduct({...newProduct, collection: e.target.value})} />
-                            </div>
-
-                            <textarea placeholder="Image URLs (comma separated)" className="w-full bg-black border border-white/20 p-3 text-xs h-24 text-white focus:border-brand-neon outline-none font-mono" value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                                <input placeholder="Colors" className="bg-black border border-white/20 p-3 text-xs text-white focus:border-brand-neon outline-none" value={newProduct.colors} onChange={e => setNewProduct({...newProduct, colors: e.target.value})} />
-                                <input placeholder="Sizes" className="bg-black border border-white/20 p-3 text-xs text-white focus:border-brand-neon outline-none" value={newProduct.sizes} onChange={e => setNewProduct({...newProduct, sizes: e.target.value})} />
-                            </div>
-
-                            <div className="bg-black border border-white/20 p-2">
-                                <label className="block text-[8px] uppercase font-bold text-white/40 tracking-widest mb-1">Status</label>
-                                <select className="w-full bg-transparent text-xs uppercase text-brand-neon outline-none font-bold" value={newProduct.status} onChange={e => setNewProduct({...newProduct, status: e.target.value})}>
-                                    <option value="available">Available</option>
-                                    <option value="sold-out">Sold Out</option>
-                                    <option value="pre-order">Pre-Order</option>
-                                </select>
-                            </div>
-
-                            <button disabled={loading} className="w-full bg-white text-black font-black py-4 uppercase tracking-[0.2em] text-xs hover:bg-brand-neon transition-colors mt-4">
-                                {loading ? 'Deploying...' : 'Deploy Unit'}
-                            </button>
-                        </form>
+        {/* ADD NEW PRODUCT FORM */}
+        {isAdding && (
+            <div className="bg-[#0a0a0a] border border-brand-neon/50 p-8 mb-12 relative animate-in fade-in slide-in-from-top-4">
+                <button onClick={() => setIsAdding(false)} className="absolute top-4 right-4 text-white/30 hover:text-white"><X size={20}/></button>
+                <h3 className="text-xl font-bold uppercase text-white mb-6 flex items-center gap-2"><Package size={20}/> Deploy New Product</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div className="col-span-2 md:col-span-1">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Name</label>
+                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="Product Name" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Price (NGN)</label>
+                        <input type="number" className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" placeholder="0" value={newProduct.price} onChange={e => setNewProduct({...newProduct, price: Number(e.target.value)})} />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Status</label>
+                        <select className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none" value={newProduct.status} onChange={e => setNewProduct({...newProduct, status: e.target.value})}>
+                            <option value="Available">Available</option>
+                            <option value="Sold Out">Sold Out</option>
+                            <option value="Pre-Order">Pre-Order</option>
+                        </select>
+                    </div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Image Links (Comma Separated)</label>
+                        <input className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none font-mono" placeholder="https://..., https://..." value={newProduct.images} onChange={e => setNewProduct({...newProduct, images: e.target.value})} />
+                    </div>
+                    <div className="col-span-2">
+                        <label className="text-[10px] uppercase font-bold text-white/40 mb-2 block">Description</label>
+                        <textarea className="w-full bg-black border border-white/20 p-3 text-sm text-white focus:border-brand-neon outline-none h-24" placeholder="Product details..." value={newProduct.description} onChange={e => setNewProduct({...newProduct, description: e.target.value})} />
                     </div>
                 </div>
-
-                <div className="md:col-span-8 lg:col-span-9 grid grid-cols-1 gap-2">
-                    {products.map(p => (
-                        <div key={p.id} className="flex gap-4 p-4 border border-white/5 bg-[#0a0a0a] items-center group hover:border-brand-neon/30 transition-colors">
-                            <div className="w-12 h-12 bg-zinc-900 bg-cover bg-center" style={{backgroundImage: `url(${p.images[0]})`}}></div>
-                            <div className="flex-1">
-                                <h4 className="font-bold uppercase text-sm">{p.name}</h4>
-                                <div className="flex gap-4 text-[10px] text-white/50 font-mono mt-1 items-center">
-                                    <span className="text-brand-neon">₦{p.price.toLocaleString()}</span>
-                                    <span>|</span>
-                                    <span className="uppercase">{p.collection}</span>
-                                </div>
-                            </div>
-                            <button onClick={() => deleteProduct(p.id)} className="text-white/20 hover:text-red-500 p-3 hover:bg-red-500/10 rounded transition-colors"><Trash2 size={16} /></button>
-                        </div>
-                    ))}
-                </div>
+                <button onClick={handleAdd} className="mt-6 w-full bg-brand-neon text-black font-black py-4 uppercase tracking-[0.2em] hover:bg-white transition-colors">Confirm Deployment</button>
             </div>
         )}
+
+        {/* PRODUCT LIST */}
+        <div className="space-y-4">
+            {products.map((product) => (
+                <div key={product.id} className="bg-[#0a0a0a] border border-white/5 p-6 flex flex-col md:flex-row items-center gap-6 group hover:border-white/20 transition-all">
+                    <div className="h-16 w-16 bg-zinc-900 bg-cover bg-center border border-white/10" style={{backgroundImage: `url(${product.images[0]})`}}></div>
+                    
+                    <div className="flex-1 w-full">
+                        {editingId === product.id ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <input className="bg-black border border-brand-neon p-2 text-white" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
+                                <input className="bg-black border border-brand-neon p-2 text-white" type="number" value={editForm.price} onChange={(e) => setEditForm({...editForm, price: Number(e.target.value)})} />
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 className="text-xl font-bold uppercase italic">{product.name}</h3>
+                                <p className="text-brand-neon font-mono text-sm">₦{product.price.toLocaleString()}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {editingId === product.id ? (
+                            <button onClick={() => handleSave(product.id)} className="bg-green-600 text-white p-3 hover:bg-green-500"><Save size={18} /></button>
+                        ) : (
+                            <button onClick={() => { setEditingId(product.id); setEditForm(product); }} className="bg-white/5 text-white p-3 hover:bg-white/20"><Edit2 size={18} /></button>
+                        )}
+                        <button onClick={() => deleteProduct(product.id)} className="bg-red-900/20 text-red-500 p-3 hover:bg-red-600 hover:text-white"><Trash2 size={18} /></button>
+                    </div>
+                </div>
+            ))}
+        </div>
       </div>
     </div>
   );

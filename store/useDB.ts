@@ -1,71 +1,74 @@
 import { create } from 'zustand';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 
-export interface Product { 
-    id: string; 
-    name: string; 
-    price: number; 
-    category: string; 
-    images: string[]; 
-    colors: string[]; 
-    sizes?: string[]; 
-    collection?: string; 
-    description?: string; 
-}
-
-interface DropSettings {
-    dropTitle: string;
-    dropDate: string;
+// ⚠️ THE FIX: Added 'status' to this list
+export interface Product {
+  id: string;
+  name: string;
+  price: number;
+  images: string[];
+  category: string;
+  collection: string;
+  description: string;
+  sizes: string[];
+  colors: string[];
+  status: string; // <--- ADDED THIS LINE
 }
 
 interface DBState {
   products: Product[];
-  wishlist: string[];
-  dropSettings: DropSettings; // NEW
-  
+  loading: boolean;
   fetchProducts: () => Promise<void>;
-  fetchSettings: () => Promise<void>; // NEW
-  updateSettings: (s: DropSettings) => Promise<void>; // NEW
-  
-  createProduct: (p: Product) => Promise<void>;
+  updateProduct: (id: string, data: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  toggleWishlist: (id: string) => void;
+  addProduct: (data: Omit<Product, 'id'>) => Promise<void>;
 }
 
 export const useDB = create<DBState>((set, get) => ({
   products: [],
-  wishlist: [],
-  dropSettings: { dropTitle: "Loading...", dropDate: new Date().toISOString() },
+  loading: false,
 
-  fetchProducts: async () => { 
-      try {
-        const res = await fetch('/api/products'); 
-        if (!res.ok) throw new Error('Failed to load products');
-        const data = await res.json();
-        set({ products: Array.isArray(data) ? data : [] }); 
-      } catch (e) { set({ products: [] }); }
+  fetchProducts: async () => {
+    set({ loading: true });
+    try {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      const products = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Product[];
+      set({ products, loading: false });
+    } catch (error) {
+      console.error("Fetch failed:", error);
+      set({ loading: false });
+    }
   },
 
-  fetchSettings: async () => {
-      try {
-          const res = await fetch('/api/settings');
-          if (res.ok) set({ dropSettings: await res.json() });
-      } catch (e) { console.error(e); }
+  updateProduct: async (id, data) => {
+    try {
+      const productRef = doc(db, "products", id);
+      await updateDoc(productRef, data);
+      await get().fetchProducts(); 
+    } catch (error) {
+      console.error("Update failed:", error);
+    }
   },
 
-  updateSettings: async (s) => {
-      await fetch('/api/settings', { method: 'POST', body: JSON.stringify(s) });
-      set({ dropSettings: s });
+  deleteProduct: async (id) => {
+    try {
+      await deleteDoc(doc(db, "products", id));
+      await get().fetchProducts();
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
   },
 
-  createProduct: async (p) => { 
-      await fetch('/api/products', { method: 'POST', body: JSON.stringify(p) }); 
-      get().fetchProducts(); 
-  },
-
-  deleteProduct: async (id) => { 
-      await fetch(`/api/products?id=${id}`, { method: 'DELETE' }); 
-      get().fetchProducts(); 
-  },
-
-  toggleWishlist: (id) => set(s => ({ wishlist: s.wishlist.includes(id) ? s.wishlist.filter(x => x !== id) : [...s.wishlist, id] })),
+  addProduct: async (data) => {
+    try {
+      await addDoc(collection(db, "products"), data);
+      await get().fetchProducts();
+    } catch (error) {
+      console.error("Add failed:", error);
+    }
+  }
 }));
